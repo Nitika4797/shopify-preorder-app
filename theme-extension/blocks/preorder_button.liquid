@@ -1,0 +1,173 @@
+{% comment %}
+  Pre-order Button Theme App Extension
+  This block replaces the standard "Add to Cart" button with a "Pre-order" button
+  when a product is configured for pre-order.
+{% endcomment %}
+
+<div class="preorder-button-container" data-product-id="{{ product.id }}" data-variant-id="{{ product.selected_or_first_available_variant.id }}">
+  <style>
+    .preorder-button {
+      background-color: {{ block.settings.button_color }};
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.3s ease;
+    }
+    
+    .preorder-button:hover {
+      opacity: 0.9;
+    }
+    
+    .preorder-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .preorder-message {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f0f8ff;
+      border: 1px solid #007ace;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+  
+  <!-- Default Add to Cart Button (hidden when pre-order is active) -->
+  <div class="default-cart-button">
+    <button type="submit" name="add" class="btn product-form__cart-submit" form="product-form-{{ product.id }}">
+      <span>Add to cart</span>
+    </button>
+  </div>
+  
+  <!-- Pre-order Button (hidden by default) -->
+  <div class="preorder-button-wrapper hidden">
+    <button type="button" class="preorder-button" onclick="handlePreorder()">
+      {{ block.settings.button_text }}
+    </button>
+    
+    {% if block.settings.show_message %}
+      <div class="preorder-message">
+        <span class="preorder-message-text">This item is available for pre-order!</span>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // Check if this product is configured for pre-order
+  async function checkPreorderStatus() {
+    const container = document.querySelector('.preorder-button-container');
+    const productId = container.dataset.productId;
+    const variantId = container.dataset.variantId;
+    const shopDomain = Shopify.shop;
+    
+    try {
+      // In a real implementation, this would call your app's API
+      // For now, we'll use a placeholder that checks localStorage for demo purposes
+      const preorderConfig = localStorage.getItem(`preorder_${productId}_${variantId}`);
+      
+      if (preorderConfig) {
+        const config = JSON.parse(preorderConfig);
+        if (config.isPreorderEnabled) {
+          showPreorderButton(config);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking pre-order status:', error);
+    }
+  }
+  
+  function showPreorderButton(config) {
+    const defaultButton = document.querySelector('.default-cart-button');
+    const preorderWrapper = document.querySelector('.preorder-button-wrapper');
+    const messageText = document.querySelector('.preorder-message-text');
+    
+    // Hide default button and show pre-order button
+    defaultButton.classList.add('hidden');
+    preorderWrapper.classList.remove('hidden');
+    
+    // Update message if provided
+    if (config.customPreorderMessage && messageText) {
+      messageText.textContent = config.customPreorderMessage;
+    }
+  }
+  
+  function handlePreorder() {
+    const container = document.querySelector('.preorder-button-container');
+    const productId = container.dataset.productId;
+    const variantId = container.dataset.variantId;
+    
+    // Get current quantity from the form
+    const quantityInput = document.querySelector('input[name="quantity"]');
+    const quantity = quantityInput ? quantityInput.value : 1;
+    
+    // Add to cart with pre-order tag
+    const formData = new FormData();
+    formData.append('id', variantId);
+    formData.append('quantity', quantity);
+    formData.append('properties[_preorder]', 'true');
+    formData.append('properties[_preorder_product_id]', productId);
+    
+    fetch('/cart/add.js', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Trigger cart update events
+      document.dispatchEvent(new CustomEvent('cart:updated'));
+      
+      // Show success message
+      alert('Pre-order item added to cart!');
+    })
+    .catch(error => {
+      console.error('Error adding pre-order to cart:', error);
+      alert('Error adding item to cart. Please try again.');
+    });
+  }
+  
+  // Initialize when page loads
+  document.addEventListener('DOMContentLoaded', checkPreorderStatus);
+  
+  // Re-check when variant changes
+  document.addEventListener('variant:change', checkPreorderStatus);
+</script>
+
+{% schema %}
+{
+  "name": "Pre-order Button",
+  "target": "section_group://product-information",
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button Text",
+      "default": "Pre-order Now"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button Color",
+      "default": "#007ace"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_message",
+      "label": "Show Pre-order Message",
+      "default": true
+    }
+  ]
+}
+{% endschema %}
+
