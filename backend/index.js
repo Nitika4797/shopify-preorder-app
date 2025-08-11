@@ -22,6 +22,7 @@ app.get("/", (req, res) => {
 });
 
 // Routes
+app.use('/', require('./routes/preorders'));  
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/preorders", require("./routes/preorders"));
 app.use("/api/webhooks", require("./routes/webhooks"));
