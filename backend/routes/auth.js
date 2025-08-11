@@ -1,41 +1,46 @@
 const express = require('express');
 const router = express.Router();
 
-// Simplified auth routes for testing
-router.get('/callback', async (req, res) => {
-  try {
-    const { shop, code, state } = req.query;
-    
-    if (!shop || !code) {
-      return res.status(400).json({ error: 'Missing shop or code parameter' });
-    }
+/**
+ * GET /api/auth
+ * Start OAuth by redirecting to Shopify's authorize URL.
+ * Expects ?shop=your-store.myshopify.com
+ */
+router.get('/', (req, res) => {
+  const { shop } = req.query;
+  if (!shop) return res.status(400).json({ error: 'Missing shop parameter' });
 
-    // In a real implementation, this would handle OAuth
-    console.log('OAuth callback received for shop:', shop);
-    res.json({ success: true, shop, message: 'OAuth callback received' });
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
+  const redirectUri = `${process.env.SHOPIFY_APP_URL}/api/auth/callback`;
+  const scopes = process.env.SHOPIFY_SCOPES; // e.g. read_products,write_products
+
+  const installUrl =
+    `https://${shop}/admin/oauth/authorize` +
+    `?client_id=${process.env.SHOPIFY_API_KEY}` +
+    `&scope=${encodeURIComponent(scopes)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+  return res.redirect(installUrl);
 });
 
-// Begin OAuth flow
-router.get('/begin', async (req, res) => {
-  try {
-    const { shop } = req.query;
-    
-    if (!shop) {
-      return res.status(400).json({ error: 'Missing shop parameter' });
-    }
+/**
+ * Optional: keep your test endpoint
+ * GET /api/auth/begin
+ */
+router.get('/begin', (req, res) => {
+  const { shop } = req.query;
+  if (!shop) return res.status(400).json({ error: 'Missing shop parameter' });
+  res.json({ success: true, shop, message: 'OAuth begin endpoint' });
+});
 
-    // In a real implementation, this would redirect to Shopify OAuth
-    console.log('OAuth begin requested for shop:', shop);
-    res.json({ success: true, shop, message: 'OAuth begin endpoint' });
-  } catch (error) {
-    console.error('OAuth begin error:', error);
-    res.status(500).json({ error: 'Failed to begin authentication' });
-  }
+/**
+ * OAuth callback placeholder
+ * GET /api/auth/callback
+ */
+router.get('/callback', (req, res) => {
+  const { shop, code } = req.query;
+  if (!shop || !code) return res.status(400).json({ error: 'Missing shop or code parameter' });
+  // TODO: exchange code for access token
+  res.json({ success: true, shop, message: 'OAuth callback received' });
 });
 
 module.exports = router;
-
