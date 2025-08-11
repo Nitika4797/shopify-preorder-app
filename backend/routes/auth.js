@@ -1,27 +1,13 @@
 // backend/routes/auth.js
-router.get('/', (req, res) => {
-  try {
-    const { shop } = req.query;
-    if (!shop) return res.status(400).json({ error: 'Missing shop parameter' });
-
-    const appUrl = process.env.SHOPIFY_APP_URL;
-    const key = process.env.SHOPIFY_API_KEY;
-    const scopes = process.env.SHOPIFY_SCOPES;
-
-    // Log what we have (will show in Render logs)
-    console.log('AUTH HIT', { shop, appUrl, keyPresent: !!key, scopes });
-
-    const redirectUri = `${appUrl}/api/auth/callback`;
-    const installUrl =
-      `https://${shop}/admin/oauth/authorize` +
-      `?client_id=${key}` +
-      `&scope=${encodeURIComponent(scopes || '')}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}`;
-
-    // Instead of redirecting, just show what we would redirect to
-    return res.json({ ok: true, installUrl });
-  } catch (e) {
-    console.error('AUTH ERROR', e);
-    res.status(500).json({ error: 'auth route crashed', detail: String(e) });
-  }
+// GET /api/auth/debug  -> shows exactly what we're sending
+router.get('/debug', (req, res) => {
+  res.json({
+    shop: req.query.shop,
+    SHOPIFY_API_KEY: (process.env.SHOPIFY_API_KEY || '').trim(),
+    SHOPIFY_API_KEY_tail: (process.env.SHOPIFY_API_KEY || '').trim().slice(-6),
+    SHOPIFY_API_SECRET_tail: (process.env.SHOPIFY_API_SECRET || '').trim().slice(-6),
+    SHOPIFY_APP_URL: process.env.SHOPIFY_APP_URL,
+    SHOPIFY_SCOPES: process.env.SHOPIFY_SCOPES
+  });
 });
+
