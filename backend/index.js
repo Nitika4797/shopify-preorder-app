@@ -8,14 +8,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CORS for Shopify storefront (ScriptTag fetches)
+const cors = require('cors');
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    if (/\.myshopify\.com$/.test(origin)) return cb(null, true);
-    cb(null, true); // admin pages etc.
+    if (/\.myshopify\.com$/i.test(origin)) return cb(null, true);
+    return cb(null, true);
   },
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
