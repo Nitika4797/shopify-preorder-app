@@ -1,41 +1,38 @@
 const express = require('express');
-const PreorderConfig = require('../models/PreorderConfig');
 const router = express.Router();
+const PreorderConfig = require('../models/PreorderConfig');
 
-// Get all preorder configurations for a shop
-router.get('/:shopId', async (req, res) => {
-  try {
-    const { shopId } = req.params;
-    const configs = await PreorderConfig.find({ shopId });
-    res.json(configs);
-  } catch (error) {
-    console.error('Error fetching preorder configs:', error);
-    res.status(500).json({ error: 'Failed to fetch preorder configurations' });
-  }
-});
+// --------- helpers ----------
+const getShopId = req =>
+  (req.query.shop || req.headers['x-shop-domain'] || req.headers['x-shopify-shop-domain'] || '').trim();
 
-// Get preorder configuration for a specific product/variant
-router.get('/:shopId/:productId/:variantId?', async (req, res) => {
-  try {
-    const { shopId, productId, variantId } = req.params;
-    
-    const query = { shopId, productId };
-    if (variantId && variantId !== 'undefined') {
-      query.variantId = variantId;
-    }
-    
-    const config = await PreorderConfig.findOne(query);
-    res.json(config || { isPreorderEnabled: false });
-  } catch (error) {
-    console.error('Error fetching preorder config:', error);
-    res.status(500).json({ error: 'Failed to fetch preorder configuration' });
-  }
-});
+const norm = v => (v == null ? null : String(v));
 
-// Create or update preorder configuration
-router.post('/:shopId', async (req, res) => {
+const parseDate = v => {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// --------- Admin: create/update (upsert) ----------
+/**
+ * POST /api/preorders
+ * body: {
+ *   productId (required), variantId (optional),
+ *   isPreorderEnabled (bool),
+ *   preorderQuantityLimit (number|null),
+ *   expectedShippingDate (date string|null),
+ *   customPreorderMessage (string),
+ *   paymentType ("full_upfront" | "deposit" | "upon_fulfillment"),
+ *   depositPercentage (1..100)
+ * }
+ * query: ?shop=your-store.myshopify.com  (for MVP; later use session)
+ */
+router.post('/', async (req, res) => {
   try {
-    const { shopId } = req.params;
+    const shopId = getShopId(req);
+    if (!shopId) return res.status(400).json({ error: 'Missing shop' });
+
     const {
       productId,
       variantId,
@@ -47,57 +44,98 @@ router.post('/:shopId', async (req, res) => {
       depositPercentage
     } = req.body;
 
-    if (!productId) {
-      return res.status(400).json({ error: 'Product ID is required' });
-    }
+    if (!productId) return res.status(400).json({ error: 'Missing productId' });
 
-    const query = { shopId, productId };
-    if (variantId) {
-      query.variantId = variantId;
-    }
-
-    const updateData = {
-      shopId,
-      productId,
-      variantId,
-      isPreorderEnabled,
-      preorderQuantityLimit,
-      expectedShippingDate,
-      customPreorderMessage,
-      paymentType,
-      depositPercentage
+    const $set = {
+      isPreorderEnabled: !!isPreorderEnabled,
+      preorderQuantityLimit: preorderQuantityLimit === null ? null : Number(preorderQuantityLimit),
+      expectedShippingDate: parseDate(expectedShippingDate),
+      customPreorderMessage: customPreorderMessage ?? undefined,
+      paymentType: paymentType ?? undefined,
+      depositPercentage: depositPercentage == null ? undefined : Number(depositPercentage)
     };
 
-    const config = await PreorderConfig.findOneAndUpdate(
-      query,
-      updateData,
-      { upsert: true, new: true }
+    const doc = await PreorderConfig.findOneAndUpdate(
+      { shopId, productId: String(productId), variantId: norm(variantId) },
+      { $set },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    res.json(config);
-  } catch (error) {
-    console.error('Error saving preorder config:', error);
-    res.status(500).json({ error: 'Failed to save preorder configuration' });
+    res.json({ ok: true, data: doc });
+  } catch (err) {
+    console.error('POST /api/preorders error', err);
+    res.status(500).json({ error: 'Failed to save preorder config' });
   }
 });
 
-// Delete preorder configuration
-router.delete('/:shopId/:productId/:variantId?', async (req, res) => {
+// --------- Admin: read ----------
+/**
+ * GET /api/preorders?productId=...&variantId=...&shop=...
+ */
+router.get('/', async (req, res) => {
   try {
-    const { shopId, productId, variantId } = req.params;
-    
-    const query = { shopId, productId };
-    if (variantId && variantId !== 'undefined') {
-      query.variantId = variantId;
+    const shopId = getShopId(req);
+    if (!shopId) return res.status(400).json({ error: 'Missing shop' });
+
+    const { productId, variantId } = req.query;
+    if (!productId) return res.status(400).json({ error: 'Missing productId' });
+
+    const doc = await PreorderConfig.findOne({
+      shopId,
+      productId: String(productId),
+      variantId: norm(variantId)
+    });
+
+    res.json({ ok: true, data: doc || null });
+  } catch (err) {
+    console.error('GET /api/preorders error', err);
+    res.status(500).json({ error: 'Failed to load preorder config' });
+  }
+});
+
+// --------- Storefront proxy (for theme or ScriptTag) ----------
+/**
+ * Shopify App Proxy (or direct for testing):
+ *   Shopify → Apps → App setup → App proxy:
+ *     Subpath prefix: apps
+ *     Subpath: preorder
+ *     Proxy URL: https://<your-app-domain>/proxy
+ *
+ * Shopify storefront will call:
+ *   https://{shop}/apps/preorder?productId=..&variantId=..
+ * We serve it here (at our Proxy URL):
+ */
+router.get('/proxy', async (req, res) => {
+  try {
+    const shopId =
+      (req.headers['x-shopify-shop-domain'] || req.query.shop || '').trim(); // allow ?shop for testing
+    const { productId, variantId } = req.query;
+
+    if (!shopId || !productId) {
+      return res.status(400).json({ error: 'Missing shop or productId' });
     }
-    
-    await PreorderConfig.findOneAndDelete(query);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting preorder config:', error);
-    res.status(500).json({ error: 'Failed to delete preorder configuration' });
+
+    const doc = await PreorderConfig.findOne({
+      shopId,
+      productId: String(productId),
+      variantId: norm(variantId)
+    });
+
+    res.json({
+      ok: true,
+      productId: String(productId),
+      variantId: norm(variantId),
+      enabled: !!(doc && doc.isPreorderEnabled),
+      message: doc?.customPreorderMessage || null,
+      shipDate: doc?.expectedShippingDate || null,
+      limit: doc?.preorderQuantityLimit ?? null,
+      paymentType: doc?.paymentType || 'full_upfront',
+      depositPercentage: doc?.depositPercentage ?? null
+    });
+  } catch (err) {
+    console.error('GET /proxy error', err);
+    res.status(500).json({ error: 'Proxy failed' });
   }
 });
 
 module.exports = router;
-
