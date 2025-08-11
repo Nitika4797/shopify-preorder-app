@@ -35,6 +35,26 @@ app.use(cors({
   credentials: false
 }));
 app.use(express.json());
+// --- CORS for storefront (very permissive but safe: no credentials) ---
+app.use((req, res, next) => {
+  try {
+    const origin = req.headers.origin || '';
+    // allow any *.myshopify.com origin; otherwise fallback to *
+    if (origin && /\.myshopify\.com$/.test(new URL(origin).hostname)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  } catch {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // we do NOT allow credentials, so wildcard is fine
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 app.use(express.urlencoded({ extended:true }));
 
 // Health
