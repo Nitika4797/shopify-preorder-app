@@ -1,17 +1,20 @@
+// backend/models/PreorderConfig.js
 const mongoose = require('mongoose');
 
 const preorderConfigSchema = new mongoose.Schema({
-  shopId: { type: String, required: true, index: true },          // use shop domain as shopId
+  shop: { type: String, required: true, index: true },        // nitika-app-store.myshopify.com
   productId: { type: String, required: true, index: true },
-  variantId: { type: String, required: false, index: true },
-  isPreorderEnabled: { type: Boolean, default: false },
-  preorderQuantityLimit: { type: Number, default: null },          // null = no limit
+  variantId: { type: String, default: null, index: true },
+  enabled: { type: Boolean, default: false },
+
+  preorderQuantityLimit: { type: Number, default: null },      // null = no limit
   expectedShippingDate: { type: Date, default: null },
-  customPreorderMessage: { type: String, default: 'This item is available for pre-order!' },
-  paymentType: { type: String, enum: ['full_upfront', 'deposit', 'upon_fulfillment'], default: 'full_upfront' },
+  customPreorderMessage: { type: String, default: 'This item is available for preorder' },
+
+  paymentType: { type: String, enum: ['full_upfront','deposit','upon_fulfillment'], default: 'full_upfront' },
   depositPercentage: { type: Number, default: 20, min: 1, max: 100 }
 }, { timestamps: true });
 
-preorderConfigSchema.index({ shopId: 1, productId: 1, variantId: 1 }, { unique: true });
+preorderConfigSchema.index({ shop: 1, productId: 1, variantId: 1 }, { unique: true });
 
 module.exports = mongoose.model('PreorderConfig', preorderConfigSchema);
