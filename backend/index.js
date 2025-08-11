@@ -14,6 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 // Health check (quick uptime probe)
 app.get("/healthz", (_req, res) => res.send("OK"));
 
+
 // Root: if opened directly, show a hint
 app.get("/", (req, res) => {
   const { shop } = req.query;
@@ -26,6 +27,8 @@ app.use('/', require('./routes/preorders'));
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/preorders", require("./routes/preorders"));
 app.use("/api/webhooks", require("./routes/webhooks"));
+app.use('/', require('./routes/admin'));  // serves /admin
+
 
 // Error handling
 app.use((err, _req, res, _next) => {
