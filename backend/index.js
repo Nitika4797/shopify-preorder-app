@@ -1,8 +1,8 @@
-
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path'); // <-- ADD THIS
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -34,12 +34,13 @@ app.use(cors({
   },
   credentials: false
 }));
+
 app.use(express.json());
-// --- CORS for storefront (very permissive but safe: no credentials) ---
+
+// --- CORS for storefront ---
 app.use((req, res, next) => {
   try {
     const origin = req.headers.origin || '';
-    // allow any *.myshopify.com origin; otherwise fallback to *
     if (origin && /\.myshopify\.com$/.test(new URL(origin).hostname)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
@@ -50,12 +51,14 @@ app.use((req, res, next) => {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  // we do NOT allow credentials, so wildcard is fine
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
 app.use(express.urlencoded({ extended:true }));
+
+// ✅ Serve public folder (this is where script.js will go)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Health
 app.get('/healthz', (req,res)=>res.json({ ok:true, ts:new Date().toISOString() }));
