@@ -41,7 +41,8 @@ app.use("/auth", authRoutes);
 app.use("/admin", shopify.validateAuthenticatedSession(), adminRoutes);
 
 // App Proxy & Storefront Script
-app.use("/apps/preorder", proxyRoutes);
+router.get("/config", async (req,res)=>{ ... }); // <-- yahi /apps/preorder/config serve karta hai
+
 app.use("/script", scriptRoutes);
 
 // Health
