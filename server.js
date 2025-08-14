@@ -308,3 +308,21 @@ app.get('/', (_req, res) => {
 app.listen(PORT, () => {
   console.log(`➡ Preorder app running on :${PORT}`);
 });
+
+// --- GDPR endpoints ---
+app.post('/gdpr/customer-data', (req, res) => {
+  console.log('GDPR customer data request', req.body);
+  res.sendStatus(200);
+});
+
+app.post('/gdpr/customer-erasure', (req, res) => {
+  console.log('GDPR customer erasure request', req.body);
+  // delete customer data if stored
+  res.sendStatus(200);
+});
+
+app.post('/gdpr/shop-erasure', (req, res) => {
+  console.log('GDPR shop erasure request', req.body);
+  // delete all shop data if stored
+  res.sendStatus(200);
+});
